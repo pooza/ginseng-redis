@@ -11,6 +11,6 @@ test:
   filters:
     - name: ci
       cases:
-        - redis_service
+        - service_test
 redis:
   dsn: null
