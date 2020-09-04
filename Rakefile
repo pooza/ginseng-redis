@@ -4,7 +4,7 @@ ENV['BUNDLE_GEMFILE'] = File.join(dir, 'Gemfile')
 
 require 'bundler/setup'
 require 'ginseng'
-require 'ginseng/reds'
+require 'ginseng/redis'
 
 namespace :bundle do
   desc 'update gems'
