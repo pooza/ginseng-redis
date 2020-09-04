@@ -3,14 +3,17 @@ require 'redis'
 module Ginseng
   module Redis
     class Service < ::Redis
-      def initialize
-        dsn = Service.dsn
-        dsn.db ||= 1
+      def initialize(params = {})
         @logger = Logger.new
         @config = Config.instance
-        raise Error, "Invalid DSN '#{dsn}'" unless dsn.absolute?
-        raise Error, "Invalid scheme '#{dsn.scheme}'" unless dsn.scheme == 'redis'
-        super(url: dsn.to_s)
+        unless params[:url]
+          dsn = Service.dsn
+          dsn.db ||= 1
+          raise Error, "Invalid DSN '#{dsn}'" unless dsn.absolute?
+          raise Error, "Invalid scheme '#{dsn.scheme}'" unless dsn.scheme == 'redis'
+          params[:url] = dsn.to_s
+        end
+        super
       end
 
       def get(key)
