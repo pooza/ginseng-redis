@@ -32,10 +32,6 @@ module Ginseng
       def self.full_name
         return "#{name} #{version}"
       end
-
-      def self.user_agent
-        return "#{name}/#{version} (#{url})"
-      end
     end
   end
 end

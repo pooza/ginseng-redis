@@ -10,8 +10,8 @@ module Ginseng
     autoload :Environment
     autoload :Error
     autoload :Logger
-    autoload :Packate
-    autoload :Server
+    autoload :Package
+    autoload :Service
     autoload :TestCase
     autoload :TestCaseFilter
 
