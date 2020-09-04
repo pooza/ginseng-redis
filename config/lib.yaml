@@ -1,0 +1,16 @@
+package:
+  version: 1.0.0
+  url: https://github.com/pooza/ginseng-redis
+  authors:
+    - Tatsuya Koishi
+  email:
+    - tkoishi@b-shock.co.jp
+  description: ginseng Redis libraries
+  license: MIT
+test:
+  filters:
+    - name: ci
+      cases:
+        - service_test
+redis:
+  dsn: null
