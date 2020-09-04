@@ -3,9 +3,11 @@ require 'redis'
 module Ginseng
   module Redis
     class Service < ::Redis
+      include Package
+
       def initialize(params = {})
-        @logger = Logger.new
-        @config = Config.instance
+        @logger = logger_class.new
+        @config = config_class.instance
         unless params[:url]
           dsn = Service.dsn
           dsn.db ||= 1
