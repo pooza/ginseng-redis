@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.license = package['license']
   spec.metadata['homepage_uri'] = package['url']
   spec.require_paths = ['lib']
-  spec.required_ruby_version = '>=2.6'
+  spec.required_ruby_version = '>=2.7'
 
   spec.add_dependency 'redis'
   spec.add_development_dependency 'rubocop'
