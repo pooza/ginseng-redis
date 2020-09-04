@@ -14,7 +14,7 @@ namespace :bundle do
 
   desc 'check gems'
   task :check do
-    unless Ginseng::Fediverse::Environment.gem_fresh?
+    unless Ginseng::Redis::Environment.gem_fresh?
       warn 'gems is not fresh.'
       exit 1
     end
