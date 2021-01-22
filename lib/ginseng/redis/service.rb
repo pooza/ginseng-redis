@@ -25,15 +25,25 @@ module Ginseng
       end
 
       def set(key, value)
+        cnt ||= 0
         return super
       rescue => e
-        raise Error, e.message, e.backtrace
+        cnt += 1
+        @logger.error(error: e, count: cnt)
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
       end
 
       def unlink(key)
+        cnt ||= 0
         return super
       rescue => e
-        raise Error, e.message, e.backtrace
+        cnt += 1
+        @logger.error(error: e, count: cnt)
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
       end
 
       alias del unlink
@@ -50,6 +60,14 @@ module Ginseng
 
       def prefix
         return nil
+      end
+
+      def retry_limit
+        return config['/redis/retry/limit']
+      end
+
+      def retry_seconds
+        return config['/redis/retry/seconds']
       end
 
       def self.dsn
