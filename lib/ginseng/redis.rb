@@ -1,22 +1,20 @@
-require 'ginseng'
-require 'active_support/dependencies/autoload'
+require 'bundler/setup'
 
 module Ginseng
   module Redis
-    extend ActiveSupport::Autoload
+    def self.dir
+      return File.expand_path('../..', __dir__)
+    end
 
-    autoload :Config
-    autoload :DSN
-    autoload :Environment
-    autoload :Error
-    autoload :Logger
-    autoload :Package
-    autoload :Service
-    autoload :TestCase
-    autoload :TestCaseFilter
-
-    autoload_under 'test_case_filter' do
-      autoload :CITestCaseFilter
+    def self.loader
+      config = YAML.load_file(File.join(dir, 'config/autoload.yaml'))
+      loader = Zeitwerk::Loader.new
+      loader.inflector.inflect(config['inflections'])
+      loader.push_dir(File.join(dir, 'lib/ginseng/redis'), namespace: Ginseng::Redis)
+      return loader
     end
   end
 end
+
+Bundler.require
+Ginseng::Redis.loader.setup
