@@ -6,7 +6,7 @@ module Ginseng
       end
 
       def self.dir
-        return File.expand_path('../../..', __dir__)
+        return Ginseng::Redis.dir
       end
     end
   end

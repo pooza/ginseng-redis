@@ -14,7 +14,8 @@ module Ginseng
       return loader
     end
   end
+
+  Bundler.require
+  loader.setup
 end
 
-Bundler.require
-Ginseng::Redis.loader.setup
