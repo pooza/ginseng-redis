@@ -1,5 +1,5 @@
 package:
-  version: 1.1.0
+  version: 1.1.1
   url: https://github.com/pooza/ginseng-redis
   authors:
     - Tatsuya Koishi
@@ -7,11 +7,6 @@ package:
     - tkoishi@b-shock.co.jp
   description: ginseng Redis libraries
   license: MIT
-test:
-  filters:
-    - name: ci
-      cases:
-        - service_test
 redis:
   dsn: null
   retry:
