@@ -18,4 +18,3 @@ module Ginseng
   Bundler.require
   loader.setup
 end
-
