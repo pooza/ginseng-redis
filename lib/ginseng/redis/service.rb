@@ -48,6 +48,10 @@ module Ginseng
 
       alias del unlink
 
+      def clear
+        all_keys.each {|k| unlink(k)}
+      end
+
       def all_keys
         return keys('*') unless prefix
         return keys("#{prefix}:*")
