@@ -13,8 +13,8 @@ module Ginseng
       loader.push_dir(File.join(dir, 'lib/ginseng/redis'), namespace: Ginseng::Redis)
       return loader
     end
-  end
 
-  Bundler.require
-  loader.setup
+    Bundler.require
+    loader.setup
+  end
 end
