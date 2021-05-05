@@ -4,9 +4,7 @@ module Ginseng
       include Package
 
       def self.create(name)
-        all do |filter|
-          return filter if filter.name == name
-        end
+        return all.find {|v| v.name == name}
       end
 
       def self.all
