@@ -18,15 +18,39 @@ module Ginseng
         super
       end
 
+      def [](key)
+        return get(key)
+      end
+
+      def []=(key, value)
+        set(key, value)
+      end
+
       def get(key)
-        return super
+        cnt ||= 0
+        return super(create_key(key))
       rescue => e
-        raise Error, e.message, e.backtrace
+        cnt += 1
+        @logger.error(error: e, count: cnt)
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
       end
 
       def set(key, value)
         cnt ||= 0
-        return super
+        return super(create_key(key), value)
+      rescue => e
+        cnt += 1
+        @logger.error(error: e, count: cnt)
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
+      end
+
+      def setex(key, ttl, value)
+        cnt ||= 0
+        return super(create_key(key), ttl, value)
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
@@ -37,7 +61,7 @@ module Ginseng
 
       def unlink(key)
         cnt ||= 0
-        return super
+        return super(create_key(key))
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
