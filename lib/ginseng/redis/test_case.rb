@@ -6,7 +6,7 @@ module Ginseng
       def self.load
         ENV['TEST'] = Package.name
         names.each do |name|
-          puts "case: #{name}"
+          puts "+ case: #{name}" if Environment.test?
           require File.join(dir, "#{name}.rb")
         end
       end
