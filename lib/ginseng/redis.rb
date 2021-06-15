@@ -14,18 +14,7 @@ module Ginseng
       return loader
     end
 
-    def self.setup_debug
-      Ricecream.disable
-      return unless Environment.development?
-      Ricecream.enable
-      Ricecream.include_context = true
-      Ricecream.colorize = true
-      Ricecream.prefix = "#{Package.name} | "
-      Ricecream.define_singleton_method(:arg_to_s, proc {|v| PP.pp(v)})
-    end
-
     Bundler.require
     loader.setup
-    setup_debug
   end
 end
