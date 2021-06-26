@@ -21,5 +21,5 @@ end
 
 desc 'test all'
 task :test do
-  Ginseng::Redis::TestCase.load
+  Ginseng::Redis::TestCase.load((ARGV.first&.split(/[^[:word:],]+/) || [])[1])
 end
