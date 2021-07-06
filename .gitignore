@@ -3,6 +3,8 @@
 Thumbs.db
 ._*
 .fuse*
+debug.log
 config/local.*
 .sass-cache
+dist
 Gemfile.lock
