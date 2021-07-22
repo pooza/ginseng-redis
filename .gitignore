@@ -8,3 +8,4 @@ config/local.*
 .sass-cache
 dist
 Gemfile.lock
+.ruby-version
