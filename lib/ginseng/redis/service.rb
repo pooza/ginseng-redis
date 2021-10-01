@@ -59,6 +59,12 @@ module Ginseng
         retry
       end
 
+      def key?(key)
+        return keys(create_key(key)).present?
+      end
+
+      alias exist? key?
+
       def unlink(key)
         cnt ||= 0
         return super(create_key(key))
