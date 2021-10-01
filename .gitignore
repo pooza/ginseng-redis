@@ -1,8 +1,13 @@
-.bundle/
+.bundle
 .DS_Store
-Thumbs.db
 ._*
+Thumbs.db
+Desktop.ini
 .fuse*
-config/local.*
+*.log
 .sass-cache
+dist
 Gemfile.lock
+.ruby-version
+*.code-workspace
+.vscode

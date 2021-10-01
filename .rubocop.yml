@@ -16,10 +16,14 @@ AllCops:
     - 'public/**/*'
     - 'config/**/*'
     - 'tmp/**/*'
+    - '**/old/**/*'
   TargetRubyVersion: 2.6
 
 Naming/RescuedExceptionsVariableName:
   PreferredName: e
+
+Naming/InclusiveLanguage:
+  Enabled: false
 
 Style/FrozenStringLiteralComment:
   Enabled: false
@@ -201,6 +205,9 @@ Layout/EmptyLinesAroundAttributeAccessor:
 Layout/EndOfLine:
   EnforcedStyle: lf
 
+Layout/LineEndStringConcatenationIndentation:
+  Enabled: false
+
 Metrics/AbcSize:
   Max: 30
   Exclude:
@@ -211,7 +218,7 @@ Metrics/BlockLength:
     - 'test/*'
     - '**/contract/*'
     - '**/controller/*'
-    - 'app/task/*'
+    - 'app/task/**/*.rb'
     - '*.gemspec'
 
 Metrics/MethodLength:
@@ -342,4 +349,5 @@ Rake:
     - '*'
   Include:
     - 'Rakefile'
-    - 'app/task/*'
+    - '*.rake'
+    - 'app/task/**/*.rb'
