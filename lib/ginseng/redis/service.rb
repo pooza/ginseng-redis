@@ -89,7 +89,7 @@ module Ginseng
 
       def create_key(key)
         return key unless prefix
-        key.sub!(/^#{prefix}:/, '')
+        key.to_s.sub!(/^#{prefix}:/, '')
         return "#{prefix}:#{key}"
       end
 
