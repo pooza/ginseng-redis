@@ -21,6 +21,10 @@ module Ginseng
         assert_equal(@service.get(__dir__), '一兆度の炎')
         assert_equal(@service.del(__dir__), 1)
       end
+
+      def test_save
+        assert(@service.save)
+      end
     end
   end
 end

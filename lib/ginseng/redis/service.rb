@@ -78,6 +78,17 @@ module Ginseng
 
       alias del unlink
 
+      def save
+        cnt ||= 0
+        return super
+      rescue => e
+        cnt += 1
+        @logger.error(error: e, count: cnt)
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
+      end
+
       def clear
         all_keys.each {|k| unlink(k)}
       end
