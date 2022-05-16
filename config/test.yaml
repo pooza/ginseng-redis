@@ -1,4 +1,0 @@
-filters:
-  - name: ci
-    cases:
-      - service_test
