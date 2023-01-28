@@ -53,7 +53,7 @@ module Ginseng
 
       def setex(key, ttl, value)
         cnt ||= 0
-        return redis.setex(create_key(key), ttl, value)
+        return redis.call('SETEX', create_key(key), ttl, value)
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
