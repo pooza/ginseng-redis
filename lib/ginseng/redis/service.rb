@@ -1,9 +1,10 @@
-require 'redis'
+require 'redis-client'
 
 module Ginseng
   module Redis
-    class Service < ::Redis
+    class Service
       include Package
+      attr_reader :redis, :config
 
       def initialize(params = {})
         @logger = logger_class.new
@@ -15,7 +16,8 @@ module Ginseng
           raise Error, "Invalid scheme '#{dsn.scheme}'" unless dsn.scheme == 'redis'
           params[:url] = dsn.to_s
         end
-        super
+        dsn = DSN.parse(params[:url])
+        @redis = RedisClient.config(url: dsn.to_s).new_pool
       end
 
       def [](key)
@@ -28,7 +30,7 @@ module Ginseng
 
       def get(key)
         cnt ||= 0
-        return super(create_key(key))
+        return redis.call('GET', create_key(key))
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
@@ -39,7 +41,8 @@ module Ginseng
 
       def set(key, value)
         cnt ||= 0
-        return super(create_key(key), value)
+        value = '' if value.nil?
+        return redis.call('SET', create_key(key), value)
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
@@ -50,7 +53,7 @@ module Ginseng
 
       def setex(key, ttl, value)
         cnt ||= 0
-        return super(create_key(key), ttl, value)
+        return redis.setex(create_key(key), ttl, value)
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
@@ -67,7 +70,7 @@ module Ginseng
 
       def unlink(key)
         cnt ||= 0
-        return super(create_key(key))
+        return redis.call('UNLINK', create_key(key))
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
@@ -80,7 +83,7 @@ module Ginseng
 
       def save
         cnt ||= 0
-        return super
+        return redis.call('SAVE')
       rescue => e
         cnt += 1
         @logger.error(error: e, count: cnt)
@@ -91,6 +94,10 @@ module Ginseng
 
       def clear
         all_keys.each {|k| unlink(k)}
+      end
+
+      def keys(key)
+        return redis.call('KEYS', key)
       end
 
       def all_keys
