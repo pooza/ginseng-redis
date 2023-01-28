@@ -1,6 +1,4 @@
-module Ginseng
-  module Redis
-    class Error < Ginseng::Error
-    end
+module Ginseng::Redis
+  class Error < Ginseng::Error
   end
 end
