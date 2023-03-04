@@ -13,9 +13,9 @@ Gem::Specification.new do |spec|
   spec.metadata['homepage_uri'] = package['url']
   spec.metadata['rubygems_mfa_required'] = 'true'
   spec.require_paths = ['lib']
-  spec.required_ruby_version = '>=3.0'
+  spec.required_ruby_version = '>=3.1'
 
-  spec.add_dependency 'redis-client'
+  spec.add_dependency 'redis-client', '~>0.12.0'
   spec.add_development_dependency 'ricecream'
   spec.add_development_dependency 'rubocop'
   spec.add_development_dependency 'rubocop-minitest'
