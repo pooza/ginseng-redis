@@ -1,5 +1,6 @@
 require:
   - rubocop-performance
+  - rubocop-minitest
   - rubocop-rake
 
 AllCops:
@@ -17,7 +18,7 @@ AllCops:
     - '**/Rakefile'
     - '**/config.ru'
   NewCops: enable
-  TargetRubyVersion: 3.0
+  TargetRubyVersion: 3.1
 Layout/ArgumentAlignment:
   EnforcedStyle: with_fixed_indentation
 Layout/ArrayAlignment:
@@ -95,6 +96,10 @@ Metrics/PerceivedComplexity:
     - test/*
     - '**/contract/*'
   Max: 10
+Minitest/MultipleAssertions:
+  Enabled: false
+Minitest/TestFileName:
+  Enabled: false
 Naming/RescuedExceptionsVariableName:
   PreferredName: e
 Rake:

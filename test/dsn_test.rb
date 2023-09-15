@@ -10,19 +10,19 @@ module Ginseng
       end
 
       def test_scheme
-        assert_equal(@dsn.scheme, 'redis')
+        assert_equal('redis', @dsn.scheme)
       end
 
       def test_host
-        assert_equal(@dsn.host, 'localhost')
+        assert_equal('localhost', @dsn.host)
       end
 
       def test_port
-        assert_equal(@dsn.port, 6379)
+        assert_equal(6379, @dsn.port)
       end
 
       def test_db
-        assert_equal(@dsn.db, 1)
+        assert_equal(1, @dsn.db)
       end
     end
   end
