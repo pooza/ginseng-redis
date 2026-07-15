@@ -26,6 +26,16 @@ module Ginseng
         assert_equal(1, @service.del(__dir__))
       end
 
+      def test_incr
+        key = SecureRandom.hex
+        @service.del(key)
+
+        assert_equal(1, @service.incr(key))
+        assert_equal(2, @service.incr(key))
+        assert_equal('2', @service.get(key))
+        @service.del(key)
+      end
+
       def test_save
         assert(@service.save)
       end
