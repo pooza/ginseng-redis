@@ -62,6 +62,17 @@ module Ginseng
         retry
       end
 
+      def incr(key)
+        cnt ||= 0
+        return redis.call('INCR', create_key(key))
+      rescue => e
+        cnt += 1
+        @logger.error(error: e, count: cnt)
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
+      end
+
       def key?(key)
         return keys(create_key(key)).present?
       end
