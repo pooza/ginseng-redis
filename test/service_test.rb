@@ -39,6 +39,39 @@ module Ginseng
       def test_save
         assert(@service.save)
       end
+
+      class PrefixedService < Service
+        def prefix
+          return 'ginseng_redis_test'
+        end
+      end
+
+      # create_key が引数の String を破壊しないこと。破壊していた頃は、同じ
+      # String を使い回すと 2 回目以降に prefix が剥がれた別のキーを引いていた (#51)。
+      def test_create_key_does_not_mutate_argument
+        service = PrefixedService.new
+        key = +'ginseng_redis_test:hoge'
+
+        assert_equal('ginseng_redis_test:hoge', service.create_key(key))
+        assert_equal('ginseng_redis_test:hoge', key)
+        assert_equal('ginseng_redis_test:hoge', service.create_key(key))
+      end
+
+      # Ruby 4 の frozen literal でも FrozenError にならないこと (#51)。
+      def test_create_key_accepts_frozen_string
+        service = PrefixedService.new
+
+        frozen = 'hoge'.freeze
+
+        assert_equal('ginseng_redis_test:hoge', service.create_key(frozen))
+      end
+
+      # 既に prefix が付いたキーを二重に付与しない（元の挙動の維持）。
+      def test_create_key_does_not_duplicate_prefix
+        service = PrefixedService.new
+
+        assert_equal('ginseng_redis_test:hoge', service.create_key('ginseng_redis_test:hoge'))
+      end
     end
   end
 end

@@ -4,6 +4,7 @@ module Ginseng
   module Redis
     class Service
       include Package
+
       attr_reader :redis, :config
 
       def initialize(params = {})
@@ -116,10 +117,15 @@ module Ginseng
         return keys("#{prefix}:*")
       end
 
+      # prefix 付きのキーを作る。既に prefix が付いていれば二重付与しない。
+      #
+      # ⚠ 引数は変更しないこと。以前は `key.to_s.sub!` で呼び出し側の String を
+      # 破壊しており（to_s は String に対して self を返す）、frozen なリテラルを
+      # 渡すと FrozenError、使い回された String では 2 回目以降に prefix が
+      # 剥がれた別のキーを引く、という二つの形で壊れていた (#51)。
       def create_key(key)
         return key unless prefix
-        key.to_s.sub!(/^#{prefix}:/, '')
-        return "#{prefix}:#{key}"
+        return "#{prefix}:#{key.to_s.sub(/^#{prefix}:/, '')}"
       end
 
       def prefix
