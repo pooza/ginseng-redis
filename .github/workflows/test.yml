@@ -1,6 +1,9 @@
 name: test
 on:
-  - push
+  push:
+  # ⚠ push 契機だけだと、更新が止まったときに赤へ気づけない。
+  schedule:
+    - cron: '25 0 * * 1'
 env:
   CI: 'true'
 jobs:
@@ -13,19 +16,20 @@ jobs:
           - ruby:3.3
           - ruby:3.4
           - ruby:4.0
+    # ⚠ services は gem ごとに違うので呼び出し側に残す。
     services:
       redis:
         image: redis:7
-        ports:
-          - 6379:6379
     steps:
-      - uses: actions/checkout@v3
-      - name: bundle install
+      - uses: actions/checkout@v5
+      # ⚠ config/local.yaml は gitignore されているので CI には無い。DSN が無いと
+      # Service が繋げずテストが落ちる。⚠⚠ container ジョブでは service の
+      # ホスト名は localhost ではなくサービス名（redis）になる。
+      - name: config
         run: |
-          gem install bundler -v '~>2.0'
-          bundle install --jobs 4 --retry 3
-          bundle exec rake bundle:update
-          bundle exec rake bundle:check
-      - name: Run lint
-        run: |
-          bundle exec rubocop
+          cat > config/local.yaml <<'YAML'
+          redis:
+            dsn: redis://redis:6379/1
+          YAML
+      # ⚠ 手順の正本は pooza/ginseng-style。ここには matrix と services と schedule だけ置く。
+      - uses: pooza/ginseng-style/.github/actions/ruby-check@main
