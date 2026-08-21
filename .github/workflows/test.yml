@@ -4,6 +4,13 @@ on:
   # ⚠ push 契機だけだと、更新が止まったときに赤へ気づけない。
   schedule:
     - cron: '25 0 * * 1'
+  # ⚠ schedule: は 60 日の無活動で GitHub に無効化される。ginseng-style の
+  # gem-watch から起こせるようにしておく。
+  workflow_dispatch:
+# ⚠⚠ 手順本体は pooza/ginseng-style の composite action を @main で参照している。
+# そこに入った変更が、このリポジトリの GITHUB_TOKEN を持って動く。既定に頼らず絞る。
+permissions:
+  contents: read
 env:
   CI: 'true'
 jobs:
@@ -22,6 +29,10 @@ jobs:
         image: redis:7
     steps:
       - uses: actions/checkout@v5
+        with:
+          # ⚠ 既定では認証情報がワークツリーの git config に残る。依存 gem は
+          # public な github: 参照なので、消しても bundle install に影響しない。
+          persist-credentials: false
       # ⚠ config/local.yaml は gitignore されているので CI には無い。DSN が無いと
       # Service が繋げずテストが落ちる。⚠⚠ container ジョブでは service の
       # ホスト名は localhost ではなくサービス名（redis）になる。
