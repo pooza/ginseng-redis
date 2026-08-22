@@ -7,7 +7,7 @@ on:
   # ⚠ schedule: は 60 日の無活動で GitHub に無効化される。ginseng-style の
   # gem-watch から起こせるようにしておく。
   workflow_dispatch:
-# ⚠⚠ 手順本体は pooza/ginseng-style の composite action を @main で参照している。
+# ⚠⚠ 手順本体は pooza/ginseng-style の composite action。版で固定しているが、
 # そこに入った変更が、このリポジトリの GITHUB_TOKEN を持って動く。既定に頼らず絞る。
 permissions:
   contents: read
@@ -43,4 +43,4 @@ jobs:
             dsn: redis://redis:6379/1
           YAML
       # ⚠ 手順の正本は pooza/ginseng-style。ここには matrix と services と schedule だけ置く。
-      - uses: pooza/ginseng-style/.github/actions/ruby-check@main
+      - uses: pooza/ginseng-style/.github/actions/ruby-check@v1.1.0
