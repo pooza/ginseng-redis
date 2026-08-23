@@ -20,7 +20,6 @@ jobs:
     strategy:
       matrix:
         ruby:
-          - ruby:3.3
           - ruby:3.4
           - ruby:4.0
     # ⚠ services は gem ごとに違うので呼び出し側に残す。
