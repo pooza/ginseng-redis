@@ -42,4 +42,4 @@ jobs:
             dsn: redis://redis:6379/1
           YAML
       # ⚠ 手順の正本は pooza/ginseng-style。ここには matrix と services と schedule だけ置く。
-      - uses: pooza/ginseng-style/.github/actions/ruby-check@e5917622d069be324c6879c2a1d2522069d48d2c # v1.1.10
+      - uses: pooza/ginseng-style/.github/actions/ruby-check@91c49d3b512a31dcd714baf156cd253b84eb4f0f # v1.1.11
