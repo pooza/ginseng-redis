@@ -63,15 +63,33 @@ module Ginseng
         retry
       end
 
+      # 🔴🔴 **`INCR` だけは再送しない (#56)。**
+      #
+      # ⚠⚠ **冪等ではないので、「届いたか分からない」失敗で撮ち直すとカウンタが
+      # 二重に進む**。応答を受け取る前に切れただけなら、Redis 側では**実行済みかもしれない**。
+      # 🔴 1 回の呼び出しで `retry_limit` 回まで進みうる（利用側の例:
+      # `mulukhiya-toot-proxy` のヒステリシスのカウンタ — 多めに進むと**早すぎる通知**になる）。
+      #
+      # ⚠ **再送してよいのは「確実に届いていない」ときだけ** — 接続そのものが張れなかった
+      # （`CannotConnectError`）場合。🔴 `ReadTimeoutError` / `WriteTimeoutError` / 素の
+      # `ConnectionError` は**曖昧**なので再送しない。⚠⚠ `CommandError`（値が数字でない等）は
+      # サーバが答えているので、再送しても同じ結果になる。
+      #
+      # ⚠ **他のコマンド（`GET` / `SET` / `SETEX` / `UNLINK`）は実質冪等**なので従来のまま。
       def incr(key)
         cnt ||= 0
         return redis.call('INCR', create_key(key))
-      rescue => e
+      rescue RedisClient::CannotConnectError => e
         cnt += 1
         @logger.error(error: e, count: cnt)
         raise Error, e.message, e.backtrace unless cnt < retry_limit
         sleep(retry_seconds)
         retry
+      rescue => e
+        # ⚠ **上げ直す前に残す。** 🔴 再送しないと決めた以上、**この 1 行が
+        # 「進んだかもしれない」唯一の跡**になる。
+        @logger.error(error: e, count: cnt, command: 'INCR', retried: false)
+        raise Error, e.message, e.backtrace
       end
 
       def key?(key)
