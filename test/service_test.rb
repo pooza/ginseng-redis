@@ -41,6 +41,35 @@ module Ginseng
         end
       end
 
+      # 記録だけする logger。⚠ **再送しない以上、ログの中身が唯一の跡**になる。
+      class Recorder
+        attr_reader :logs
+
+        def initialize
+          @logs = []
+        end
+
+        [:error, :warn, :info, :debug, :fatal].each do |severity|
+          define_method(severity) do |message = nil|
+            @logs.push([severity, message])
+            return true
+          end
+        end
+      end
+
+      # 🔴 **数えてから出す (#56 Codex P2)。** ⚠⚠ そのまま出すと初回が `count: 0` になり、
+      # **再送側の経路と数が食い違う**。
+      def test_incr_counts_the_failure_it_did_not_retry
+        client = RaisingClient.new(RedisClient::ReadTimeoutError)
+        logger = Recorder.new
+        @service.instance_variable_set(:@redis, client)
+        @service.instance_variable_set(:@logger, logger)
+
+        assert_raise(Error) {@service.incr(SecureRandom.hex)}
+        assert_equal(1, logger.logs.last.last[:count])
+        assert_false(logger.logs.last.last[:retried])
+      end
+
       # 🔴🔴 **曖昧な失敗では撮ち直さない (#56)。**
       #
       # ⚠⚠ `INCR` は冪等ではないので、応答を受け取る前に切れただけなら

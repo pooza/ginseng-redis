@@ -88,6 +88,9 @@ module Ginseng
       rescue => e
         # ⚠ **上げ直す前に残す。** 🔴 再送しないと決めた以上、**この 1 行が
         # 「進んだかもしれない」唯一の跡**になる。
+        # ⚠⚠ **数えてから出す (#56 Codex P2)。** 🔴 そのまま出すと初回は `count: 0` になり、
+        # **他の経路（再送側）と数が食い違う** — 唯一の跡が実際より少なく見える。
+        cnt += 1
         @logger.error(error: e, count: cnt, command: 'INCR', retried: false)
         raise Error, e.message, e.backtrace
       end
