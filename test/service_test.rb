@@ -20,6 +20,23 @@ module Ginseng
         assert_false(@service.key?(key))
       end
 
+      # 🔴 **キーをパターンとして読まない (#70)。** URL の形のキーで偽陰性、
+      # パターン文字で偽陽性になっていた。
+      def test_key_is_not_a_pattern
+        base = SecureRandom.hex
+        stored = ["#{base}:q?tags[]=a", "#{base}:a\\b", "#{base}:abc"]
+        stored.each do |key|
+          @service[key] = 1
+
+          assert_true(@service.key?(key), key)
+        end
+        ["#{base}:*", "#{base}:a?c", "#{base}:[ab]bc"].each do |key|
+          assert_false(@service.key?(key), key)
+        end
+      ensure
+        stored&.each {|key| @service.del(key)}
+      end
+
       def test_edit
         assert_equal('OK', @service.set(__dir__, '一兆度の炎'))
         assert_equal('一兆度の炎', @service.get(__dir__))

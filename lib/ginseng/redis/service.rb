@@ -102,8 +102,19 @@ module Ginseng
         raise Error, e.message, e.backtrace
       end
 
+      # ⚠⚠ **`KEYS` で引かない (#70)。** `KEYS` はキーを**パターン**として読むので、
+      # `*` / `?` / `[` / `\` を含むキーで答えが狂う。🔴 URL の形のキー
+      # （`?tags[]=a`）では**格納済みなのに false** になり、利用側のキャッシュが効かなかった。
+      # ⚠ `KEYS` はキー空間全体を走査するブロッキング命令でもある。
       def key?(key)
-        return keys(create_key(key)).present?
+        cnt ||= 0
+        return redis.call('EXISTS', create_key(key)).positive?
+      rescue => e
+        cnt += 1
+        @logger.error(error: e, count: cnt)
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
       end
 
       alias exist? key?
