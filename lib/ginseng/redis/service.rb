@@ -30,37 +30,16 @@ module Ginseng
       end
 
       def get(key)
-        cnt ||= 0
-        return redis.call('GET', create_key(key))
-      rescue => e
-        cnt += 1
-        @logger.error(error: e, count: cnt)
-        raise Error, e.message, e.backtrace unless cnt < retry_limit
-        sleep(retry_seconds)
-        retry
+        return retrying('GET', key) {redis.call('GET', create_key(key))}
       end
 
       def set(key, value)
-        cnt ||= 0
         value = '' if value.nil?
-        return redis.call('SET', create_key(key), value)
-      rescue => e
-        cnt += 1
-        @logger.error(error: e, count: cnt)
-        raise Error, e.message, e.backtrace unless cnt < retry_limit
-        sleep(retry_seconds)
-        retry
+        return retrying('SET', key) {redis.call('SET', create_key(key), value)}
       end
 
       def setex(key, ttl, value)
-        cnt ||= 0
-        return redis.call('SETEX', create_key(key), ttl, value)
-      rescue => e
-        cnt += 1
-        @logger.error(error: e, count: cnt)
-        raise Error, e.message, e.backtrace unless cnt < retry_limit
-        sleep(retry_seconds)
-        retry
+        return retrying('SETEX', key) {redis.call('SETEX', create_key(key), ttl, value)}
       end
 
       # 🔴🔴 **`INCR` だけは再送しない (#56)。**
@@ -75,7 +54,7 @@ module Ginseng
       # `ConnectionError` は**曖昧**なので再送しない。⚠⚠ `CommandError`（値が数字でない等）は
       # サーバが答えているので、再送しても同じ結果になる。
       #
-      # ⚠ **他のコマンド（`GET` / `SET` / `SETEX` / `UNLINK`）は実質冪等**なので従来のまま。
+      # ⚠ **他のコマンド（`GET` / `SET` / `SETEX` / `UNLINK`）は実質冪等**なので従来のまま（`retrying`）。
       #
       # 🔴🔴 **ここで止めても、下の層が撃ち直したら意味がない。** ⚠⚠ `redis-client` は
       # `reconnect_attempts` の既定が `false` なので**自分では再送しない**（0.30.0 で実測）。
@@ -88,7 +67,7 @@ module Ginseng
         cnt += 1
         # ⚠⚠ **再送した側にも同じ印を付ける。** 🔴 `command` と `retried` が片側にしか
         # 無いと、**`command: 'INCR'` で絞った operator から再送の経路だけが消える**。
-        @logger.error(error: e, count: cnt, command: 'INCR', retried: true)
+        @logger.error(error: e, count: cnt, **log_target('INCR', key), retried: true)
         raise Error, e.message, e.backtrace unless cnt < retry_limit
         sleep(retry_seconds)
         retry
@@ -98,7 +77,7 @@ module Ginseng
         # ⚠⚠ **数えてから出す (#56 Codex P2)。** 🔴 そのまま出すと初回は `count: 0` になり、
         # **他の経路（再送側）と数が食い違う** — 唯一の跡が実際より少なく見える。
         cnt += 1
-        @logger.error(error: e, count: cnt, command: 'INCR', retried: false)
+        @logger.error(error: e, count: cnt, **log_target('INCR', key), retried: false)
         raise Error, e.message, e.backtrace
       end
 
@@ -107,40 +86,19 @@ module Ginseng
       # （`?tags[]=a`）では**格納済みなのに false** になり、利用側のキャッシュが効かなかった。
       # ⚠ `KEYS` はキー空間全体を走査するブロッキング命令でもある。
       def key?(key)
-        cnt ||= 0
-        return redis.call('EXISTS', create_key(key)).positive?
-      rescue => e
-        cnt += 1
-        @logger.error(error: e, count: cnt)
-        raise Error, e.message, e.backtrace unless cnt < retry_limit
-        sleep(retry_seconds)
-        retry
+        return retrying('EXISTS', key) {redis.call('EXISTS', create_key(key)).positive?}
       end
 
       alias exist? key?
 
       def unlink(key)
-        cnt ||= 0
-        return redis.call('UNLINK', create_key(key))
-      rescue => e
-        cnt += 1
-        @logger.error(error: e, count: cnt)
-        raise Error, e.message, e.backtrace unless cnt < retry_limit
-        sleep(retry_seconds)
-        retry
+        return retrying('UNLINK', key) {redis.call('UNLINK', create_key(key))}
       end
 
       alias del unlink
 
       def save
-        cnt ||= 0
-        return redis.call('SAVE')
-      rescue => e
-        cnt += 1
-        @logger.error(error: e, count: cnt)
-        raise Error, e.message, e.backtrace unless cnt < retry_limit
-        sleep(retry_seconds)
-        retry
+        return retrying('SAVE') {redis.call('SAVE')}
       end
 
       def clear
@@ -181,6 +139,51 @@ module Ginseng
 
       def self.dsn
         return DSN.parse(Config.instance['/redis/dsn'])
+      end
+
+      private
+
+      # 失敗したら `retry_limit` 回まで撃ち直す（冪等なコマンド用。⚠ `INCR` には使わない）。
+      def retrying(command, key = nil)
+        cnt ||= 0
+        return yield
+      rescue => e
+        cnt += 1
+        @logger.error(error: e, count: cnt, **log_target(command, key))
+        raise Error, e.message, e.backtrace unless cnt < retry_limit
+        sleep(retry_seconds)
+        retry
+      end
+
+      # 失敗の行に載せる、何をしていたかの手掛かり (#73)。
+      #
+      # ⚠ **`command:` は全部の行に付ける。** 付いていなかった頃は、`GET` の再送と
+      # `EXISTS` の再送をログで区別できなかった。
+      #
+      # 🔴 **ここで例外を上げない (#78 Codex P2)。** rescue の中で呼ばれるので、上がると
+      # ログも再送も飛ばして、`Error` ではない例外が利用側へ漏れる。
+      def log_target(command, key)
+        return {command:} if key.nil?
+        return {command:, key_prefix: key_prefix(key)}
+      rescue
+        return {command:, key_prefix: nil}
+      end
+
+      # キーの頭だけを返す (#73)。`prefix` と、利用側のキーの最初の `:` まで。
+      #
+      # 🔴 **キーを丸ごと出さない。** キーは利用側が作るので、資格情報が混じりうる
+      # （トークンでキャッシュを引く設計は珍しくない）。⚠ `ginseng-core` の `Masking` は
+      # 使わない — この gem は core に依存していないうえ、`Masking` は名前で伏せる仕組みで、
+      # キーに埋まった値は見分けられない。
+      # ⚠ 利用側のキーに `:` が無ければ、利用側の部分は 1 文字も出さない（キー全体が
+      # トークンの形もありうる）。`prefix` も無ければ `nil`。
+      # 🔴 **バイト列として切る (#78 Codex P2)。** 文字列のまま正規表現を当てると、不正な UTF-8 を
+      # 含むキー（`"cache:\xFF"`）で `ArgumentError` になる。⚠ `create_key` も通さない（同じ理由で上がる）。
+      def key_prefix(key)
+        rest = key.to_s.b
+        rest = rest.delete_prefix("#{prefix}:".b) if prefix
+        head = rest[/\A[^:]*:/n]&.force_encoding(Encoding::UTF_8)&.scrub
+        return [prefix && "#{prefix}:", head].join.then {|v| v.empty? ? nil : v}
       end
     end
   end

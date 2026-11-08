@@ -136,6 +136,79 @@ module Ginseng
         assert_true(logger.logs.last.last[:retried])
       end
 
+      def failing_service(error, service: @service)
+        logger = Recorder.new
+        service.instance_variable_set(:@redis, RaisingClient.new(error))
+        service.instance_variable_set(:@logger, logger)
+        service.define_singleton_method(:retry_seconds) {0}
+        return logger
+      end
+
+      # ⚠ **再送の行にも `command:` が付くこと (#73)。** 🔴 付いていなかった頃は、
+      # `GET` の再送と `EXISTS` の再送をログで区別できなかった。
+      def test_retried_failures_carry_the_command
+        {
+          'GET' => -> {@service.get('a:b')},
+          'SET' => -> {@service.set('a:b', 1)},
+          'SETEX' => -> {@service.setex('a:b', 10, 1)},
+          'EXISTS' => -> {@service.key?('a:b')},
+          'UNLINK' => -> {@service.unlink('a:b')},
+          'SAVE' => -> {@service.save},
+        }.each do |command, call|
+          logger = failing_service(RedisClient::CannotConnectError)
+
+          assert_raise(Error) {call.call}
+          assert_equal([command] * 3, logger.logs.map {|_, log| log[:command]}, command)
+          assert_equal([1, 2, 3], logger.logs.map {|_, log| log[:count]}, command)
+        end
+      end
+
+      # 🔴🔴 **キーは頭だけを出す (#73)。** キーは利用側が作るので、資格情報が混じりうる。
+      def test_failures_carry_only_the_head_of_the_key
+        secret = SecureRandom.hex
+        {
+          "token:#{secret}" => 'token:',
+          "https://example.com/?token=#{secret}" => 'https:',
+          secret => nil,
+        }.each do |key, expected|
+          [-> {@service.get(key)}, -> {@service.incr(key)}].each do |call|
+            logger = failing_service(RedisClient::CannotConnectError)
+
+            assert_raise(Error) {call.call}
+            assert_equal([expected] * 3, logger.logs.map {|_, log| log[:key_prefix]}, key)
+            assert_false(logger.logs.inspect.include?(secret), "#{key} の秘密がログに出ないこと")
+          end
+        end
+      end
+
+      # 🔴 **不正な UTF-8 を含むキーでも、ログと再送を止めない (#78 Codex P2)。** 文字列のまま
+      # 正規表現を当てると `ArgumentError` が rescue の中で上がり、再送も `Error` への包み直しも飛んでいた。
+      def test_key_prefix_survives_invalid_utf8
+        [[@service, 'cache:'], [PrefixedService.new, 'ginseng_redis_test:cache:']].each do |service, expected|
+          logger = failing_service(RedisClient::CannotConnectError, service:)
+
+          assert_raise(Error) {service.get("cache:\xFF".dup.force_encoding(Encoding::UTF_8))}
+          assert_equal([expected] * 3, logger.logs.map {|_, log| log[:key_prefix]})
+        end
+      end
+
+      # ⚠ **`prefix` は出す**（どのサービスのキーか）。利用側の部分は最初の `:` まで。
+      def test_key_prefix_keeps_the_service_prefix
+        service = PrefixedService.new
+        secret = SecureRandom.hex
+        {
+          "user:#{secret}" => 'ginseng_redis_test:user:',
+          "ginseng_redis_test:user:#{secret}" => 'ginseng_redis_test:user:',
+          secret => 'ginseng_redis_test:',
+        }.each do |key, expected|
+          logger = failing_service(RedisClient::ReadTimeoutError, service:)
+
+          assert_raise(Error) {service.incr(key)}
+          assert_equal(expected, logger.logs.last.last[:key_prefix], key)
+          assert_false(logger.logs.inspect.include?(secret), key)
+        end
+      end
+
       # ⚠ **確実に届いていないときは従来どおり再送する (#56)。**
       # 🔴🔴 ここまで止めると、**一過性の接続失敗で毎回落ちる**ことになる。
       def test_incr_retries_when_the_connection_could_not_be_made
