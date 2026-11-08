@@ -159,9 +159,14 @@ module Ginseng
       #
       # ⚠ **`command:` は全部の行に付ける。** 付いていなかった頃は、`GET` の再送と
       # `EXISTS` の再送をログで区別できなかった。
+      #
+      # 🔴 **ここで例外を上げない (#78 Codex P2)。** rescue の中で呼ばれるので、上がると
+      # ログも再送も飛ばして、`Error` ではない例外が利用側へ漏れる。
       def log_target(command, key)
         return {command:} if key.nil?
         return {command:, key_prefix: key_prefix(key)}
+      rescue
+        return {command:, key_prefix: nil}
       end
 
       # キーの頭だけを返す (#73)。`prefix` と、利用側のキーの最初の `:` まで。
@@ -172,9 +177,12 @@ module Ginseng
       # キーに埋まった値は見分けられない。
       # ⚠ 利用側のキーに `:` が無ければ、利用側の部分は 1 文字も出さない（キー全体が
       # トークンの形もありうる）。`prefix` も無ければ `nil`。
+      # 🔴 **バイト列として切る (#78 Codex P2)。** 文字列のまま正規表現を当てると、不正な UTF-8 を
+      # 含むキー（`"cache:\xFF"`）で `ArgumentError` になる。⚠ `create_key` も通さない（同じ理由で上がる）。
       def key_prefix(key)
-        rest = prefix ? create_key(key).delete_prefix("#{prefix}:") : key.to_s
-        head = rest[/\A[^:]*:/]
+        rest = key.to_s.b
+        rest = rest.delete_prefix("#{prefix}:".b) if prefix
+        head = rest[/\A[^:]*:/n]&.force_encoding(Encoding::UTF_8)&.scrub
         return [prefix && "#{prefix}:", head].join.then {|v| v.empty? ? nil : v}
       end
     end
