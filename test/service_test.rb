@@ -183,12 +183,16 @@ module Ginseng
 
       # 🔴 **不正な UTF-8 を含むキーでも、ログと再送を止めない (#78 Codex P2)。** 文字列のまま
       # 正規表現を当てると `ArgumentError` が rescue の中で上がり、再送も `Error` への包み直しも飛んでいた。
+      # ⚠ 通る経路は 2 つある（リリース前レビュー）。`prefix` が無ければ接続の失敗（クライアントは 3 回
+      # 呼ばれる）、`prefix` があれば `create_key` の `ArgumentError`（クライアントに届く前。0 回）。
+      # どちらでも、ログを作る側が上げないことを見る。
       def test_key_prefix_survives_invalid_utf8
-        [[@service, 'cache:'], [PrefixedService.new, 'ginseng_redis_test:cache:']].each do |service, expected|
+        [[@service, 'cache:', 3], [PrefixedService.new, 'ginseng_redis_test:cache:', 0]].each do |service, expected, calls|
           logger = failing_service(RedisClient::CannotConnectError, service:)
 
           assert_raise(Error) {service.get("cache:\xFF".dup.force_encoding(Encoding::UTF_8))}
           assert_equal([expected] * 3, logger.logs.map {|_, log| log[:key_prefix]})
+          assert_equal(calls, service.redis.calls)
         end
       end
 
