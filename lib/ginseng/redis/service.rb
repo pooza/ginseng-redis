@@ -11,7 +11,7 @@ module Ginseng
         @logger = logger_class.new
         @config = config_class.instance
         unless params[:url]
-          dsn = Service.dsn
+          dsn = self.class.dsn
           dsn.db ||= 1
           raise Error, "Invalid DSN '#{dsn}'" unless dsn.absolute?
           raise Error, "Invalid scheme '#{dsn.scheme}'" unless dsn.scheme == 'redis'
