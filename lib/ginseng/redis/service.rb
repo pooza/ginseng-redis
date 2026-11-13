@@ -12,8 +12,14 @@ module Ginseng
         @config = config_class.instance
         unless params[:url]
           dsn = self.class.dsn
+          # ⚠ 未設定（`/redis/dsn: null`）やサブクラスが DSN 以外を返すと、下の `db` で原因の分からない
+          # NoMethodError になっていた。
+          unless dsn.is_a?(DSN)
+            raise Error, "DSN is not configured (#{self.class}.dsn returned #{dsn.class})"
+          end
           dsn.db ||= 1
-          raise Error, "Invalid DSN '#{dsn}'" unless dsn.absolute?
+          # 🔴 **DSN をそのまま載せない。** `//:pass@host` の形でパスワードが例外メッセージに平文で出ていた。
+          raise Error, "Invalid DSN '#{filter_password(dsn)}'" unless dsn.absolute?
           raise Error, "Invalid scheme '#{dsn.scheme}'" unless dsn.scheme == 'redis'
           params[:url] = dsn.to_s
         end
@@ -143,6 +149,14 @@ module Ginseng
       end
 
       private
+
+      # 例外メッセージに載せる DSN。パスワードだけ伏せる（ユーザー名・ホスト・DB は原因の手掛かりとして残す）。
+      def filter_password(dsn)
+        return dsn.to_s unless dsn.password
+        filtered = dsn.dup
+        filtered.password = '[FILTERED]'
+        return filtered.to_s
+      end
 
       # 失敗したら `retry_limit` 回まで撃ち直す（冪等なコマンド用。⚠ `INCR` には使わない）。
       def retrying(command, key = nil)
