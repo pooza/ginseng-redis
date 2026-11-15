@@ -5,13 +5,16 @@ module Ginseng
     class Service
       include Package
 
+      # `url:` の経路で通すスキーム（redis-client の `URLConfig` が受けるもの）。→ `create_pool`
+      URL_SCHEMES = ['redis', 'rediss', 'unix', nil].freeze
+
       attr_reader :redis, :config
 
       def initialize(params = {})
         @logger = logger_class.new
         @config = config_class.instance
         unless params[:url]
-          dsn = self.class.dsn
+          dsn = configured_dsn
           # ⚠ 未設定（`/redis/dsn: null`）やサブクラスが DSN 以外を返すと、下の `db` で原因の分からない
           # NoMethodError になっていた。
           unless dsn.is_a?(DSN)
@@ -149,24 +152,45 @@ module Ginseng
 
       private
 
-      # 例外メッセージに載せる DSN。パスワードだけ伏せる（ユーザー名・ホスト・DB は原因の手掛かりとして残す）。
       # 🔴 **URL として読めない DSN の例外に、DSN を載せない (#85)。** `RedisClient.config` は
       # stdlib の `URI::InvalidURIError` を上げ、メッセージに URL を丸ごと載せる
       # （`redis://:p%ss@h/1` → `bad URI (is not URI?): "redis://:p%ss@h/1"`）。`url:` を渡す
       # 経路も同じ。⚠ 伏せた DSN を載せる（読めれば）。元の例外は `cause` に残さない
       # （メッセージに平文が載っているので、`cause` を辿るログ・Sentry から漏れる）。
+      #
+      # 🔴 **スキームは `RedisClient.config` より先に見る（2.1.2 のリリース前レビュー）。** 知らない
+      # スキームの `ArgumentError` も URL を丸ごと載せる（`Unknown URL scheme: "http://:pass@h/1"`）。
+      # ⚠ 通すのは redis-client が受けるもの（`redis` / `rediss` / `unix` / 無し）。`url:` の経路では
+      # `rediss` を受けてきたので、`.dsn` の経路（`redis` だけ）とは揃えない。
       def create_pool(url)
         dsn = DSN.parse(url)
+        raise Error, "Invalid scheme '#{dsn.scheme}'" unless URL_SCHEMES.include?(dsn.scheme)
         return RedisClient.config(url: dsn.to_s).new_pool
       rescue ::URI::InvalidURIError, Addressable::URI::InvalidURIError => e
         shown = dsn ? " '#{filter_password(dsn)}'" : ''
         raise Error, "Invalid DSN#{shown} (#{e.class})", cause: nil
       end
 
+      # ⚠ 設定の DSN が読めないときも同じく包む。Addressable の文言には userinfo が載る形がある
+      # （`Cannot assemble URI string with ambiguous path: ':pass@h'`）。
+      def configured_dsn
+        return self.class.dsn
+      rescue Addressable::URI::InvalidURIError => e
+        raise Error, "Invalid DSN (#{e.class})", cause: nil
+      end
+
+      # 例外メッセージに載せる DSN。パスワードだけ伏せる（ユーザー名・ホスト・DB は原因の手掛かりとして残す）。
+      # 🔴 **パスワードの無い userinfo はユーザー名ごと伏せる（2.1.2 のリリース前レビュー）。**
+      # redis-client は `redis://<secret>@h` の `<secret>` をパスワードとして読む（`URLConfig#password`）。
       def filter_password(dsn)
-        return dsn.to_s unless dsn.password
         filtered = dsn.dup
-        filtered.password = '[FILTERED]'
+        if dsn.password
+          filtered.password = '[FILTERED]'
+        elsif dsn.user
+          filtered.user = '[FILTERED]'
+        else
+          return dsn.to_s
+        end
         return filtered.to_s
       end
 
