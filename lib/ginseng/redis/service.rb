@@ -23,8 +23,7 @@ module Ginseng
           raise Error, "Invalid scheme '#{dsn.scheme}'" unless dsn.scheme == 'redis'
           params[:url] = dsn.to_s
         end
-        dsn = DSN.parse(params[:url])
-        @redis = RedisClient.config(url: dsn.to_s).new_pool
+        @redis = create_pool(params[:url])
       end
 
       def [](key)
@@ -151,6 +150,19 @@ module Ginseng
       private
 
       # 例外メッセージに載せる DSN。パスワードだけ伏せる（ユーザー名・ホスト・DB は原因の手掛かりとして残す）。
+      # 🔴 **URL として読めない DSN の例外に、DSN を載せない (#85)。** `RedisClient.config` は
+      # stdlib の `URI::InvalidURIError` を上げ、メッセージに URL を丸ごと載せる
+      # （`redis://:p%ss@h/1` → `bad URI (is not URI?): "redis://:p%ss@h/1"`）。`url:` を渡す
+      # 経路も同じ。⚠ 伏せた DSN を載せる（読めれば）。元の例外は `cause` に残さない
+      # （メッセージに平文が載っているので、`cause` を辿るログ・Sentry から漏れる）。
+      def create_pool(url)
+        dsn = DSN.parse(url)
+        return RedisClient.config(url: dsn.to_s).new_pool
+      rescue ::URI::InvalidURIError, Addressable::URI::InvalidURIError => e
+        shown = dsn ? " '#{filter_password(dsn)}'" : ''
+        raise Error, "Invalid DSN#{shown} (#{e.class})", cause: nil
+      end
+
       def filter_password(dsn)
         return dsn.to_s unless dsn.password
         filtered = dsn.dup

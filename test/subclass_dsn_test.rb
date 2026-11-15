@@ -32,6 +32,23 @@ module Ginseng
         assert_include(error.message, 'localhost')
       end
 
+      # 🔴 URL として読めない DSN でも、例外（と `cause`）にパスワードを載せない (#85)。
+      # ⚠ 経路は 2 つ（`url:` を渡す／サブクラスの `dsn`）。
+      def test_unparsable_dsn_hides_the_password
+        ['redis://:p%ss@localhost/1', 'redis://:pa ss@localhost/1', 'redis://:pass@[localhost/1'].each do |url|
+          secret = url[%r{//:([^@]+)@}, 1]
+          [
+            -> {Service.new(url:)},
+            -> {Class.new(Service) {define_singleton_method(:dsn) {DSN.parse(url)}}.new},
+          ].each do |create|
+            error = assert_raise(Error, url) {create.call}
+
+            assert_not_include(error.message, secret, url)
+            assert_nil(error.cause, url)
+          end
+        end
+      end
+
       def test_url_param_wins
         assert_equal(3, CustomService.new(url: 'redis://localhost:6379/3').redis.config.db)
       end
