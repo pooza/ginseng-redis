@@ -49,6 +49,54 @@ module Ginseng
         end
       end
 
+      # 🔴 パスワードの無い userinfo（`redis://<secret>@h`）も伏せる。redis-client はこれをパスワードとして読む。
+      def test_user_only_userinfo_is_hidden
+        ['redis://secretX@localhost/1%', 'redis://secretX@localhost/1 '].each do |url|
+          error = assert_raise(Error, url) {Service.new(url:)}
+
+          assert_not_include(error.message, 'secretX', url)
+          assert_include(error.message, '[FILTERED]@localhost', url)
+        end
+        service_class = Class.new(Service) {define_singleton_method(:dsn) {DSN.parse('//secretX@localhost:6379/1')}}
+        error = assert_raise(Error) {service_class.new}
+
+        assert_not_include(error.message, 'secretX')
+      end
+
+      # ⚠ 読める DSN は、伏せた形をメッセージに残す（原因の手掛かり）。
+      def test_unparsable_dsn_keeps_the_filtered_dsn
+        error = assert_raise(Error) {Service.new(url: 'redis://:p%ss@localhost/1')}
+
+        assert_include(error.message, 'redis://:[FILTERED]@localhost/1')
+      end
+
+      # ⚠ `DSN.parse` 自体が落ちる（Addressable の例外）入力。`url:` の経路と、設定（`.dsn`）の経路。
+      def test_addressable_error_is_wrapped
+        ['redis://:secretX@local host/1', 'redis://:secretX@localhost:-1/1'].each do |url|
+          error = assert_raise(Error, url) {Service.new(url:)}
+
+          assert_not_include(error.message, 'secretX', url)
+          assert_nil(error.cause, url)
+        end
+        [':secretX@localhost', 'redis://[:secretX@localhost]/1'].each do |value|
+          service_class = Class.new(Service) {define_singleton_method(:dsn) {DSN.parse(value)}}
+          error = assert_raise(Error, value) {service_class.new}
+
+          assert_not_include(error.message, 'secretX', value)
+          assert_nil(error.cause, value)
+        end
+      end
+
+      # 🔴 知らないスキームの `ArgumentError` は URL を丸ごと載せるので、`url:` の経路でも先に見る。
+      def test_unknown_scheme_hides_the_url
+        ['http://:secretX@localhost/1', 'valkey://:secretX@localhost/1', 'tcp://secretX@localhost/1'].each do |url|
+          error = assert_raise(Error, url) {Service.new(url:)}
+
+          assert_not_include(error.message, 'secretX', url)
+          assert_include(error.message, 'Invalid scheme', url)
+        end
+      end
+
       def test_url_param_wins
         assert_equal(3, CustomService.new(url: 'redis://localhost:6379/3').redis.config.db)
       end
