@@ -13,6 +13,13 @@ module Ginseng
         assert_equal(7, CustomService.new.redis.config.db)
       end
 
+      # ⚠ DB 番号の無い DSN は DB 0（#82。以前の `dsn.db ||= 1` は効いていなかった）。
+      def test_dsn_without_db_uses_db0
+        service_class = Class.new(Service) {define_singleton_method(:dsn) {DSN.parse('redis://localhost:6379')}}
+
+        assert_equal(0, service_class.new.redis.config.db)
+      end
+
       # ⚠ 未設定やサブクラスが DSN 以外を返したら、NoMethodError ではなく原因の分かる Error にする。
       def test_unconfigured_dsn
         [nil, 'redis://localhost:6379/1'].each do |value|
