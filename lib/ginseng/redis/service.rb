@@ -20,7 +20,10 @@ module Ginseng
           unless dsn.is_a?(DSN)
             raise Error, "DSN is not configured (#{self.class}.dsn returned #{dsn.class})"
           end
-          dsn.db ||= 1
+          # ⚠ **DB 番号の無い DSN は DB 0 につながる (#82)。** 以前は `dsn.db ||= 1` があったが、`DSN#db` は
+          # 番号が無くても `0`（真）を返すので代入されず、`DSN#db=` も無いので、何もしていなかった。
+          # 🔴 意図どおり DB 1 に倒すと、番号を書かずに使っている利用側が別の DB を見る（破壊的）ので、
+          # 実際の挙動（redis-client の既定と同じ DB 0）を仕様にした。
           # 🔴 **DSN をそのまま載せない。** `//:pass@host` の形でパスワードが例外メッセージに平文で出ていた。
           raise Error, "Invalid DSN '#{filter_password(dsn)}'" unless dsn.absolute?
           raise Error, "Invalid scheme '#{dsn.scheme}'" unless dsn.scheme == 'redis'
