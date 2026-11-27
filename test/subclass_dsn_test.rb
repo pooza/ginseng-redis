@@ -122,6 +122,29 @@ module Ginseng
         end
       end
 
+      # 🔴🔴 redis-client の `ArgumentError` も包む。スラッシュが足りない typo は Addressable が
+      # パスとして読むので、DSN ごと伏せる (#92)。⚠ 経路は 2 つ（`url:` を渡す／サブクラスの `dsn`）。
+      def test_argument_error_hides_the_password
+        ['redis:/:secretX@localhost/1', 'redis://:secretX@localhost/1?db=%zz'].each do |url|
+          [
+            -> {Service.new(url:)},
+            -> {Class.new(Service) {define_singleton_method(:dsn) {DSN.parse(url)}}.new},
+          ].each do |create|
+            error = assert_raise(Error, url) {create.call}
+
+            assert_not_include(error.message, 'secretX', url)
+            assert_nil(error.cause, url)
+          end
+        end
+      end
+
+      # ⚠ ホストのある DSN は、これまでどおり伏せた形を残す（原因の手掛かり）。
+      def test_argument_error_keeps_the_filtered_dsn
+        error = assert_raise(Error) {Service.new(url: 'redis://:secretX@localhost/abc')}
+
+        assert_include(error.message, "'redis://:[FILTERED]@localhost/abc' (ArgumentError)")
+      end
+
       # 🔴 知らないスキームの `ArgumentError` は URL を丸ごと載せるので、`url:` の経路でも先に見る。
       def test_unknown_scheme_hides_the_url
         ['http://:secretX@localhost/1', 'valkey://:secretX@localhost/1', 'tcp://secretX@localhost/1'].each do |url|

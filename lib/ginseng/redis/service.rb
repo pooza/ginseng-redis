@@ -168,11 +168,16 @@ module Ginseng
       # スキームの `ArgumentError` も URL を丸ごと載せる（`Unknown URL scheme: "http://:pass@h/1"`）。
       # ⚠ 通すのは redis-client が受けるもの（`redis` / `rediss` / `unix` / 無し）。`url:` の経路では
       # `rediss` を受けてきたので、`.dsn` の経路（`redis` だけ）とは揃えない。
+      #
+      # 🔴🔴 **redis-client の `ArgumentError` も包む (#92)。** `URLConfig` は DSN を読む段で
+      # `Integer()` や `%` の復号に失敗すると `ArgumentError` を上げ、**メッセージに DSN の断片を
+      # そのまま載せる**（`redis:/:pass@h/1` → `invalid value for Integer(): ":pass@h/1"`）。
+      # ⚠ ここで受けているのは `url:` だけなので、`ArgumentError` は DSN の形が原因と読んでよい。
       def create_pool(url)
         dsn = DSN.parse(url)
         raise Error, "Invalid scheme '#{dsn.scheme}'" unless URL_SCHEMES.include?(dsn.scheme)
         return RedisClient.config(url: dsn.to_s).new_pool
-      rescue ::URI::InvalidURIError, Addressable::URI::InvalidURIError => e
+      rescue ::URI::InvalidURIError, Addressable::URI::InvalidURIError, ArgumentError => e
         shown = dsn ? " '#{filter_password(dsn)}'" : ''
         raise Error, "Invalid DSN#{shown} (#{e.class})", cause: nil
       end
@@ -194,7 +199,12 @@ module Ginseng
       # `create_pool` の rescue の中から**平文の DSN を `cause` に付けたまま**抜けていた。
       # userinfo を外した文字列に、伏せた userinfo を差し込んで組む。
       # ⚠ それでも組めなければ DSN ごと伏せる（伏せる処理の失敗で平文を持ち出さない）。
+      #
+      # 🔴🔴 **ホストの無い DSN に `@` があれば、DSN ごと伏せる (#92)。** スラッシュが足りない typo
+      # （`redis:/:pass@h/1` / `redis:pass@h/1`）は、Addressable が userinfo ではなくパスとして読むので、
+      # userinfo を見て伏せるだけでは**平文のまま出ていた**。
       def filter_password(dsn)
+        return FILTERED if dsn.host.to_s.empty? && dsn.to_s.include?('@')
         return dsn.to_s unless dsn.password || dsn.user
         userinfo = dsn.password ? "#{dsn.user}:#{FILTERED}" : FILTERED
         filtered = dsn.dup
