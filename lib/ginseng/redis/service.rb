@@ -8,6 +8,9 @@ module Ginseng
       # `url:` の経路で通すスキーム（redis-client の `URLConfig` が受けるもの）。→ `create_pool`
       URL_SCHEMES = ['redis', 'rediss', 'unix', nil].freeze
 
+      # 例外メッセージで userinfo の代わりに出す文字列。→ `filter_password`
+      FILTERED = '[FILTERED]'.freeze
+
       attr_reader :redis, :config
 
       def initialize(params = {})
@@ -185,16 +188,21 @@ module Ginseng
       # 例外メッセージに載せる DSN。パスワードだけ伏せる（ユーザー名・ホスト・DB は原因の手掛かりとして残す）。
       # 🔴 **パスワードの無い userinfo はユーザー名ごと伏せる（2.1.2 のリリース前レビュー）。**
       # redis-client は `redis://<secret>@h` の `<secret>` をパスワードとして読む（`URLConfig#password`）。
+      #
+      # 🔴🔴 **伏せ字を Addressable の setter に通さない (#90)。** addressable 2.10.0 は `password=` /
+      # `user=` で `[` `]` を弾くので、`'[FILTERED]'` を代入すると `InvalidURIError` が上がり、
+      # `create_pool` の rescue の中から**平文の DSN を `cause` に付けたまま**抜けていた。
+      # userinfo を外した文字列に、伏せた userinfo を差し込んで組む。
+      # ⚠ それでも組めなければ DSN ごと伏せる（伏せる処理の失敗で平文を持ち出さない）。
       def filter_password(dsn)
+        return dsn.to_s unless dsn.password || dsn.user
+        userinfo = dsn.password ? "#{dsn.user}:#{FILTERED}" : FILTERED
         filtered = dsn.dup
-        if dsn.password
-          filtered.password = '[FILTERED]'
-        elsif dsn.user
-          filtered.user = '[FILTERED]'
-        else
-          return dsn.to_s
-        end
-        return filtered.to_s
+        filtered.userinfo = nil
+        authority = "//#{filtered.authority}"
+        return filtered.to_s.sub(authority) {"//#{userinfo}@#{filtered.authority}"}
+      rescue Addressable::URI::InvalidURIError
+        return FILTERED
       end
 
       # 失敗したら `retry_limit` 回まで撃ち直す（冪等なコマンド用。⚠ `INCR` には使わない）。
