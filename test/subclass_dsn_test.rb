@@ -63,11 +63,39 @@ module Ginseng
 
           assert_not_include(error.message, 'secretX', url)
           assert_include(error.message, '[FILTERED]@localhost', url)
+          assert_nil(error.cause, url)
         end
         service_class = Class.new(Service) {define_singleton_method(:dsn) {DSN.parse('//secretX@localhost:6379/1')}}
         error = assert_raise(Error) {service_class.new}
 
         assert_not_include(error.message, 'secretX')
+      end
+
+      # 🔴🔴 伏せ字を Addressable の setter に通さない (#90)。addressable 2.10.0 は `[` `]` を弾くので、
+      # 代入で組むと伏せる処理そのものが落ち、平文の DSN を `cause` に付けたまま抜けていた。
+      # ⚠ ポート・IPv6・スキーム無し・ユーザー名だけ・userinfo 無しの形を固定する。
+      def test_filter_password_keeps_the_shape
+        service = Service.new(url: 'redis://localhost:6379/1')
+
+        {
+          'redis://:s3cret@localhost/1' => 'redis://:[FILTERED]@localhost/1',
+          'redis://user:s3cret@localhost:6380/2' => 'redis://user:[FILTERED]@localhost:6380/2',
+          'redis://s3cret@localhost/1' => 'redis://[FILTERED]@localhost/1',
+          'redis://user:s3cret@[::1]:6379/2' => 'redis://user:[FILTERED]@[::1]:6379/2',
+          '//:s3cret@localhost:6379/1' => '//:[FILTERED]@localhost:6379/1',
+          'redis://localhost/1' => 'redis://localhost/1',
+        }.each do |src, expected|
+          assert_equal(expected, service.send(:filter_password, DSN.parse(src)), src)
+        end
+      end
+
+      # ⚠ 組めなければ DSN ごと伏せる。伏せる処理の失敗で平文を持ち出さない (#90)。
+      def test_filter_password_hides_everything_when_it_cannot_build
+        service = Service.new(url: 'redis://localhost:6379/1')
+        dsn = DSN.parse('redis://:s3cret@localhost/1')
+        dsn.define_singleton_method(:dup) {raise Addressable::URI::InvalidURIError, 'redis://:s3cret@localhost/1'}
+
+        assert_equal('[FILTERED]', service.send(:filter_password, dsn))
       end
 
       # ⚠ 読める DSN は、伏せた形をメッセージに残す（原因の手掛かり）。
