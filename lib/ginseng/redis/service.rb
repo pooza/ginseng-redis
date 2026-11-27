@@ -172,7 +172,8 @@ module Ginseng
       # 🔴🔴 **redis-client の `ArgumentError` も包む (#92)。** `URLConfig` は DSN を読む段で
       # `Integer()` や `%` の復号に失敗すると `ArgumentError` を上げ、**メッセージに DSN の断片を
       # そのまま載せる**（`redis:/:pass@h/1` → `invalid value for Integer(): ":pass@h/1"`）。
-      # ⚠ ここで受けているのは `url:` だけなので、`ArgumentError` は DSN の形が原因と読んでよい。
+      # ⚠ `RedisClient.config` に渡しているのは `url:` だけなので、`ArgumentError` は DSN の形が原因と
+      # 読んでよい（redis-client 0.31.0 で確認）。
       def create_pool(url)
         dsn = DSN.parse(url)
         raise Error, "Invalid scheme '#{dsn.scheme}'" unless URL_SCHEMES.include?(dsn.scheme)
@@ -200,11 +201,14 @@ module Ginseng
       # userinfo を外した文字列に、伏せた userinfo を差し込んで組む。
       # ⚠ それでも組めなければ DSN ごと伏せる（伏せる処理の失敗で平文を持ち出さない）。
       #
-      # 🔴🔴 **ホストの無い DSN に `@` があれば、DSN ごと伏せる (#92)。** スラッシュが足りない typo
-      # （`redis:/:pass@h/1` / `redis:pass@h/1`）は、Addressable が userinfo ではなくパスとして読むので、
+      # 🔴🔴 **authority より後ろ（パス・クエリ・フラグメント）に `@` があれば、DSN ごと伏せる (#92)。**
+      # Addressable が userinfo を userinfo として読めない形は、秘密がその後ろへ回る。
       # userinfo を見て伏せるだけでは**平文のまま出ていた**。
+      # - スラッシュが足りない typo（`redis:/:pass@h/1`）: ホストが無く、全体がパスになる
+      # - パスワードにエンコードしない `/`（`redis://user:/pass@h/1` / `redis://ab/cd@h/1`）: `/` の手前を
+      #   ホストとして読み、残りがパスになる（生成したパスワードの base64 に入りやすい）
       def filter_password(dsn)
-        return FILTERED if dsn.host.to_s.empty? && dsn.to_s.include?('@')
+        return FILTERED if [dsn.path, dsn.query, dsn.fragment].compact.any? {|v| v.include?('@')}
         return dsn.to_s unless dsn.password || dsn.user
         userinfo = dsn.password ? "#{dsn.user}:#{FILTERED}" : FILTERED
         filtered = dsn.dup
