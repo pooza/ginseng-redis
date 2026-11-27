@@ -122,10 +122,16 @@ module Ginseng
         end
       end
 
-      # 🔴🔴 redis-client の `ArgumentError` も包む。スラッシュが足りない typo は Addressable が
-      # パスとして読むので、DSN ごと伏せる (#92)。⚠ 経路は 2 つ（`url:` を渡す／サブクラスの `dsn`）。
+      # 🔴🔴 redis-client の `ArgumentError` も包む。Addressable が userinfo を読めない形（スラッシュが
+      # 足りない typo・パスワードの `/`）は秘密がパスへ回るので、DSN ごと伏せる (#92)。⚠ 経路は 2 つ（`url:` を渡す／サブクラスの `dsn`）。
       def test_argument_error_hides_the_password
-        ['redis:/:secretX@localhost/1', 'redis://:secretX@localhost/1?db=%zz'].each do |url|
+        [
+          'redis:/:secretX@localhost/1',
+          'redis://:secretX@localhost/1?db=%zz',
+          # ⚠ パスワードにエンコードしない `/`（`/` の手前がホストとして読まれる）。
+          'redis://default:/secretX@localhost:6379/1',
+          'redis://ab/cdsecretX@localhost:6379/1',
+        ].each do |url|
           [
             -> {Service.new(url:)},
             -> {Class.new(Service) {define_singleton_method(:dsn) {DSN.parse(url)}}.new},
